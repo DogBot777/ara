@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OSM Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { height: 100vh; width: 100%; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map with default coordinates (e.g., Johannesburg, SA)
+        var map = L.map('map').setView([-26.2041, 28.0473], 13);
+        // Add OSM tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            maxZoom: 19
+        }).addTo(map);
+        // Function to add a route
+        function addRoute(coords) {
+            L.polyline(coords, {color: 'blue', weight: 5}).addTo(map);
+            map.fitBounds(coords);
+        }
+        // Function to center map
+        function centerMap(lat, lng) {
+            map.setView([lat, lng], 13);
+        }
+        // Listen for messages from Thunkable
+        window.addEventListener('message', function(e) {
+            try {
+                var data = JSON.parse(e.data);
+                if (data.type === 'route') {
+                    // Convert [lng, lat] to [lat, lng] for Leaflet
+                    var leafletCoords = data.coordinates.map(coord => [coord[1], coord[0]]);
+                    addRoute(leafletCoords);
+                } else if (data.type === 'center') {
+                    centerMap(data.coordinates[1], data.coordinates[0]);
+                }
+            } catch (err) {
+                console.error('Error parsing message:', err);
+            }
+        });
+    </script>
+</body>
+</html>
