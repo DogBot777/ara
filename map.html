@@ -1,63 +1,94 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OSM Map</title>
+    <title>Eswatini Addressing Map</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         #map { height: 100vh; width: 100%; }
+        .locate-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            padding: 6px 10px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <div id="map"></div>
+    <button class="locate-btn" onclick="locateUser()">📍 Center on Me</button>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // Initialize map
-        var map = L.map('map').setView([-26.2041, 28.0473], 13); // Default: Johannesburg
+        var map = L.map('map').setView([-26.316667, 31.133333], 10); // Default: Mbabane
+        var userMarker;
+        
+        // Add OSM tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            maxZoom: 19
+            attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        // Store route layer to update it
-        var routeLayer = null;
-
-        // Function to add or update route
-        function addRoute(coords) {
-            // Remove existing route if present
-            if (routeLayer) {
-                map.removeLayer(routeLayer);
+        // ===== LOCATION FUNCTIONS =====
+        function locateUser() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        const { latitude, longitude } = position.coords;
+                        if (userMarker) map.removeLayer(userMarker);
+                        
+                        userMarker = L.marker([latitude, longitude])
+                            .addTo(map)
+                            .bindPopup("Your Location");
+                        
+                        map.setView([latitude, longitude], 15);
+                        notifyThunkable(latitude, longitude);
+                    },
+                    error => {
+                        console.error("Geolocation error:", error);
+                        alert("Location access denied. Using default view.");
+                    }
+                );
+            } else {
+                alert("Geolocation not supported by this browser.");
             }
-            // Convert [lng, lat] to [lat, lng] for Leaflet
-            var leafletCoords = coords.map(coord => [coord[1], coord[0]]);
-            routeLayer = L.polyline(leafletCoords, {color: 'blue', weight: 5}).addTo(map);
-            map.fitBounds(leafletCoords);
         }
 
-        // Function to add marker
-        function addMarker(lat, lng, label) {
-            L.marker([lat, lng]).addTo(map).bindPopup(label);
+        function notifyThunkable(lat, lng) {
+            if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(
+                    JSON.stringify({ type: "userLocation", lat, lng })
+                );
+            }
         }
 
-        // Function to center map
-        function centerMap(lat, lng) {
-            map.setView([lat, lng], 13);
+        // ===== THUNKABLE INTEGRATION =====
+        function addAddressMarker(lat, lng, address) {
+            L.marker([lat, lng])
+                .addTo(map)
+                .bindPopup(`<b>${address}</b>`);
+            map.setView([lat, lng], 15);
         }
 
-        // Listen for messages from Thunkable
         window.addEventListener('message', function(e) {
             try {
-                var data = JSON.parse(e.data);
-                if (data.type === 'route') {
-                    addRoute(data.coordinates);
-                } else if (data.type === 'marker') {
-                    addMarker(data.coordinates[1], data.coordinates[0], data.label);
-                } else if (data.type === 'center') {
-                    centerMap(data.coordinates[1], data.coordinates[0]);
+                const data = JSON.parse(e.data);
+                if (data.action === "addMarker") {
+                    addAddressMarker(data.lat, data.lng, data.address);
+                } else if (data.action === "centerMap") {
+                    map.setView([data.lat, data.lng], data.zoom || 15);
                 }
-            } catch (err) {
-                console.error('Error parsing message:', err);
+            } catch(err) {
+                console.error("Message error:", err);
             }
         });
+
+        // Initial location request (optional)
+        setTimeout(locateUser, 1000);
     </script>
 </body>
 </html>
