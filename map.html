@@ -89,6 +89,22 @@
 
         // Initial location request (optional)
         setTimeout(locateUser, 1000);
+        // Communication with Flutter
+function sendToFlutter(data) {
+    if (window.LocationChannel) {
+        window.LocationChannel.postMessage(JSON.stringify(data));
+    }
+}
+
+// Initialize with default location
+window.addEventListener('load', function() {
+    if (window.flutter_inappwebview) {
+        sendToFlutter({
+            ready: true,
+            initialLocation: map.getCenter()
+        });
+    }
+});
     </script>
 </body>
 </html>
