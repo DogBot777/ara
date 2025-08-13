@@ -87,23 +87,28 @@
             }
         });
 
-        // Initial location request (optional)
-        setTimeout(locateUser, 1000);
-        // Communication with Flutter
-function sendToFlutter(data) {
-    if (window.LocationChannel) {
-        window.LocationChannel.postMessage(JSON.stringify(data));
-    }
+        // Handle URL parameters for initial position
+const urlParams = new URLSearchParams(window.location.hash.substring(1));
+const initialLat = parseFloat(urlParams.get('lat')) || -26.316667;
+const initialLng = parseFloat(urlParams.get('lng')) || 31.133333;
+
+// Initialize map with URL parameters
+var map = L.map('map').setView([initialLat, initialLng], 13);
+
+// Flutter communication bridge
+function sendToFlutter(lat, lng) {
+  if (window.FlutterWebView) {
+    window.FlutterWebView.postMessage(JSON.stringify({
+      type: 'map_tap',
+      lat: lat,
+      lng: lng
+    }));
+  }
 }
 
-// Initialize with default location
-window.addEventListener('load', function() {
-    if (window.flutter_inappwebview) {
-        sendToFlutter({
-            ready: true,
-            initialLocation: map.getCenter()
-        });
-    }
+// Send tap events
+map.on('click', function(e) {
+  sendToFlutter(e.latlng.lat, e.latlng.lng);
 });
     </script>
 </body>
