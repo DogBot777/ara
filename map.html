@@ -1,53 +1,94 @@
-<script>
-    // ... (keep your existing Leaflet initialization code)
-
-    function notifyFlutter(lat, lng) {
-        // Send location to Flutter
-        if (window.LocationChannel) {
-            window.LocationChannel.postMessage(JSON.stringify({
-                lat: lat,
-                lng: lng
-            }));
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Eswatini Addressing Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { height: 100vh; width: 100%; }
+        .locate-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            padding: 6px 10px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
         }
-    }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <button class="locate-btn" onclick="locateUser()">📍 Center on Me</button>
 
-    // Update locateUser function
-    function locateUser() {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                position => {
-                    const { latitude, longitude } = position.coords;
-                    if (userMarker) map.removeLayer(userMarker);
-                    
-                    userMarker = L.marker([latitude, longitude])
-                        .addTo(map)
-                        .bindPopup("Your Location");
-                    
-                    map.setView([latitude, longitude], 15);
-                    notifyFlutter(latitude, longitude);
-                },
-                error => {
-                    console.error("Geolocation error:", error);
-                    if (window.LocationChannel) {
-                        window.LocationChannel.postMessage(JSON.stringify({
-                            error: "Location access denied"
-                        }));
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map
+        var map = L.map('map').setView([-26.316667, 31.133333], 10); // Default: Mbabane
+        var userMarker;
+        
+        // Add OSM tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // ===== LOCATION FUNCTIONS =====
+        function locateUser() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        const { latitude, longitude } = position.coords;
+                        if (userMarker) map.removeLayer(userMarker);
+                        
+                        userMarker = L.marker([latitude, longitude])
+                            .addTo(map)
+                            .bindPopup("Your Location");
+                        
+                        map.setView([latitude, longitude], 15);
+                        notifyThunkable(latitude, longitude);
+                    },
+                    error => {
+                        console.error("Geolocation error:", error);
+                        alert("Location access denied. Using default view.");
                     }
-                }
-            );
-        } else {
-            if (window.LocationChannel) {
-                window.LocationChannel.postMessage(JSON.stringify({
-                    error: "Geolocation not supported"
-                }));
+                );
+            } else {
+                alert("Geolocation not supported by this browser.");
             }
         }
-    }
 
-    // Initialize with Flutter communication
-    if (window.LocationChannel) {
-        window.addEventListener('flutterReady', function() {
-            console.log("Flutter WebView ready");
+        function notifyThunkable(lat, lng) {
+            if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(
+                    JSON.stringify({ type: "userLocation", lat, lng })
+                );
+            }
+        }
+
+        // ===== THUNKABLE INTEGRATION =====
+        function addAddressMarker(lat, lng, address) {
+            L.marker([lat, lng])
+                .addTo(map)
+                .bindPopup(`<b>${address}</b>`);
+            map.setView([lat, lng], 15);
+        }
+
+        window.addEventListener('message', function(e) {
+            try {
+                const data = JSON.parse(e.data);
+                if (data.action === "addMarker") {
+                    addAddressMarker(data.lat, data.lng, data.address);
+                } else if (data.action === "centerMap") {
+                    map.setView([data.lat, data.lng], data.zoom || 15);
+                }
+            } catch(err) {
+                console.error("Message error:", err);
+            }
         });
-    }
-</script>
+
+        // Initial location request (optional)
+        setTimeout(locateUser, 1000);
+    </script>
+</body>
+</html>
